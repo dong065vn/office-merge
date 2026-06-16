@@ -76,6 +76,33 @@ export function addRow(sheet: SheetData): SheetData {
   return { ...sheet, rows: [...sheet.rows, row], selectedRowIds };
 }
 
+/**
+ * Xóa (đặt rỗng) nội dung tất cả ô trong vùng chữ nhật đã quét.
+ * Chỉ số dòng tính theo `rows[]`, chỉ số cột theo `headers[]` (0-based, bao gồm 2 đầu).
+ * Không xóa dòng/cột — chỉ làm trống giá trị.
+ */
+export function clearCells(
+  sheet: SheetData,
+  rowA: number,
+  rowB: number,
+  colA: number,
+  colB: number,
+): SheetData {
+  const rlo = Math.max(0, Math.min(rowA, rowB));
+  const rhi = Math.min(sheet.rows.length - 1, Math.max(rowA, rowB));
+  const clo = Math.max(0, Math.min(colA, colB));
+  const chi = Math.min(sheet.headers.length - 1, Math.max(colA, colB));
+  if (rlo > rhi || clo > chi) return sheet;
+  const cols = sheet.headers.slice(clo, chi + 1);
+  const rows = sheet.rows.map((row, i) => {
+    if (i < rlo || i > rhi) return row;
+    const next = { ...row };
+    for (const c of cols) next[c] = null;
+    return next;
+  });
+  return { ...sheet, rows };
+}
+
 /** Sắp xếp các dòng theo giá trị một cột. */
 export function sortRows(
   sheet: SheetData,

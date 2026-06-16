@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   addColumn,
   addRow,
+  clearCells,
   deleteColumn,
   renameColumn,
   reorderColumns,
@@ -52,6 +53,29 @@ describe("column operations", () => {
   it("reorderColumns chuyển cột tới vị trí đích", () => {
     const r = reorderColumns(makeSheet(), "Tuoi", "Ten");
     expect(r.headers).toEqual(["Tuoi", "Ten"]);
+  });
+});
+
+describe("clearCells (xóa nội dung vùng quét)", () => {
+  it("xóa nội dung vùng chữ nhật về null, giữ nguyên dòng/cột", () => {
+    const s = makeSheet(); // 2 dòng, cột [Ten, Tuoi]
+    const r = clearCells(s, 0, 1, 1, 1); // chỉ cột Tuoi
+    expect(r.rows.map((x) => x.Tuoi)).toEqual([null, null]);
+    expect(r.rows.map((x) => x.Ten)).toEqual(["Bình", "An"]); // không đụng
+    expect(r.headers).toEqual(["Ten", "Tuoi"]);
+    expect(r.rows).toHaveLength(2);
+  });
+
+  it("chuẩn hóa thứ tự chỉ số và kẹp trong biên", () => {
+    const s = makeSheet();
+    const r = clearCells(s, 5, 0, 0, 0); // dòng ngược + vượt biên, chỉ cột Ten
+    expect(r.rows.map((x) => x.Ten)).toEqual([null, null]);
+    expect(r.rows.map((x) => x.Tuoi)).toEqual([30, 20]);
+  });
+
+  it("vùng rỗng -> trả nguyên sheet", () => {
+    const s = makeSheet();
+    expect(clearCells(s, -5, -1, 0, 0)).toBe(s);
   });
 });
 
