@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Office Merge
 
-## Getting Started
+Web app **gộp file Excel / CSV** chạy hoàn toàn trong trình duyệt. Tải lên nhiều file,
+xem trước & chỉnh sửa dữ liệu, gộp lại và tải về theo đúng định dạng gốc. **File không
+bao giờ rời máy người dùng** — mọi xử lý chạy client-side.
 
-First, run the development server:
+## Tính năng
+
+- 📂 Kéo-thả nhiều file `.xlsx`, `.xls`, `.csv`
+- 👀 Xem trước từng file, **sửa trực tiếp giá trị ô**
+- ✅ Tick chọn dòng đưa vào kết quả, lọc/xóa dòng không cần
+- 🔀 Gộp theo kiểu **nối dòng** (các file cùng cấu trúc cột) — có validate & cảnh báo khi cột lệch
+- ⬇️ Tải về theo đúng định dạng gốc (mặc định Excel `.xlsx`), hoặc chọn `.xls` / `.csv`
+- ⚡ Parse/gộp chạy trong **Web Worker** để UI không treo với file lớn
+- 🧹 **Luôn sạch khi reload**: không lưu localStorage, HTML `no-store`, không service worker
+
+## Công nghệ
+
+- Next.js 16 (App Router) + TypeScript
+- [SheetJS `xlsx`](https://sheetjs.com) — đọc/ghi xlsx/xls/csv
+- [react-data-grid](https://github.com/adazzle/react-data-grid) — bảng xem trước & chỉnh sửa
+- Tailwind CSS v4
+
+## Phát triển
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm test         # chạy unit test (vitest)
+npm run build    # build production
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploy lên Vercel
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Push repo này lên GitHub.
+2. Vào [vercel.com/new](https://vercel.com/new), import repo. Vercel tự nhận framework Next.js.
+3. Không cần biến môi trường. Bấm **Deploy**.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Hoặc dùng CLI:
 
-## Learn More
+```bash
+npm i -g vercel
+vercel        # preview
+vercel --prod # production
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Cấu trúc
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/            # trang Next.js (force-dynamic, no-store)
+components/     # Wizard + 4 bước: Upload, Review, MergeConfig, Export
+lib/
+  types.ts      # SheetData, MergeResult…
+  format.ts     # nhận diện/đuôi/MIME định dạng
+  parsers/      # parse file -> SheetData (+ test round-trip)
+  merge/        # logic gộp append-rows (+ test)
+  export/       # serialize + download
+  worker/       # client cho Web Worker (fallback sync)
+workers/        # Web Worker parse/merge
+docs/           # spec thiết kế
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Phạm vi v1 & hướng mở rộng
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+v1 tập trung dữ liệu bảng (Excel/CSV) với kiểu gộp nối dòng. Có thể mở rộng:
+mỗi file → 1 sheet, gộp theo khóa (join), ánh xạ cột lệch tên, loại trùng (dedup).
