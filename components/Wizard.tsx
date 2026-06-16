@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { Stepper, STEPS } from "./Stepper";
 import { UploadStep } from "./UploadStep";
 import { ReviewStep } from "./ReviewStep";
@@ -8,13 +8,65 @@ import { MergeConfigStep } from "./MergeConfigStep";
 import { ExportStep } from "./ExportStep";
 import type { MergeStrategy, SheetData } from "@/lib/types";
 
+const HISTORY_LIMIT = 100;
+
+interface HistoryState {
+  past: SheetData[][];
+  present: SheetData[];
+  future: SheetData[][];
+}
+
+type Action =
+  | { type: "commit"; updater: (prev: SheetData[]) => SheetData[] }
+  | { type: "undo" }
+  | { type: "redo" };
+
+function reducer(state: HistoryState, action: Action): HistoryState {
+  switch (action.type) {
+    case "commit": {
+      const next = action.updater(state.present);
+      if (next === state.present) return state;
+      return {
+        past: [...state.past, state.present].slice(-HISTORY_LIMIT),
+        present: next,
+        future: [],
+      };
+    }
+    case "undo": {
+      if (state.past.length === 0) return state;
+      const prev = state.past[state.past.length - 1];
+      return {
+        past: state.past.slice(0, -1),
+        present: prev,
+        future: [state.present, ...state.future],
+      };
+    }
+    case "redo": {
+      if (state.future.length === 0) return state;
+      const next = state.future[0];
+      return {
+        past: [...state.past, state.present],
+        present: next,
+        future: state.future.slice(1),
+      };
+    }
+  }
+}
+
 export function Wizard() {
+  const [{ past, present: sheets, future }, dispatch] = useReducer(reducer, {
+    past: [],
+    present: [],
+    future: [],
+  });
+  // step và strategy không nằm trong lịch sử undo dữ liệu.
   const [step, setStep] = useState(0);
-  const [sheets, setSheets] = useState<SheetData[]>([]);
   const [strategy, setStrategy] = useState<MergeStrategy>("append-rows");
 
-  // "Luôn sạch khi reload": cảnh báo khi rời trang nếu đang có dữ liệu,
-  // và không lưu gì xuống storage — state chỉ sống trong RAM.
+  const canUndo = past.length > 0;
+  const canRedo = future.length > 0;
+
+  // "Luôn sạch khi reload": cảnh báo khi rời trang nếu đang có dữ liệu.
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (sheets.length > 0) e.preventDefault();
@@ -23,18 +75,45 @@ export function Wizard() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [sheets.length]);
 
+  // Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo (toàn cục, trừ khi đang sửa ô).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const tag = (document.activeElement?.tagName ?? "").toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        dispatch({ type: "undo" });
+      } else if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        dispatch({ type: "redo" });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const addSheets = useCallback(
-    (added: SheetData[]) => setSheets((prev) => [...prev, ...added]),
+    (added: SheetData[]) =>
+      dispatch({ type: "commit", updater: (prev) => [...prev, ...added] }),
     [],
   );
   const removeSheet = useCallback(
-    (id: string) => setSheets((prev) => prev.filter((s) => s.id !== id)),
+    (id: string) =>
+      dispatch({ type: "commit", updater: (prev) => prev.filter((s) => s.id !== id) }),
     [],
   );
-  const clearAll = useCallback(() => setSheets([]), []);
+  const clearAll = useCallback(
+    () => dispatch({ type: "commit", updater: () => [] }),
+    [],
+  );
   const updateSheet = useCallback(
     (id: string, patch: Partial<SheetData>) =>
-      setSheets((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s))),
+      dispatch({
+        type: "commit",
+        updater: (prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      }),
     [],
   );
 
@@ -43,7 +122,29 @@ export function Wizard() {
 
   return (
     <div className="space-y-6">
-      <Stepper current={step} />
+      <div className="flex items-center justify-between">
+        <Stepper current={step} />
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => dispatch({ type: "undo" })}
+            disabled={!canUndo}
+            title="Hoàn tác (Ctrl+Z)"
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm disabled:opacity-40"
+          >
+            ↶ Hoàn tác
+          </button>
+          <button
+            type="button"
+            onClick={() => dispatch({ type: "redo" })}
+            disabled={!canRedo}
+            title="Làm lại (Ctrl+Y)"
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm disabled:opacity-40"
+          >
+            ↷ Làm lại
+          </button>
+        </div>
+      </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         {step === 0 && (
@@ -68,7 +169,7 @@ export function Wizard() {
       <div className="flex justify-between">
         <button
           type="button"
-          onClick={() => setStep((s) => Math.max(0, s - 1))}
+          onClick={() => setStep(Math.max(0, step - 1))}
           disabled={step === 0}
           className="rounded-lg border border-slate-300 px-4 py-2 disabled:opacity-40"
         >
@@ -77,7 +178,7 @@ export function Wizard() {
         {step < STEPS.length - 1 && (
           <button
             type="button"
-            onClick={() => setStep((s) => s + 1)}
+            onClick={() => setStep(step + 1)}
             disabled={!canNext}
             className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-40"
           >

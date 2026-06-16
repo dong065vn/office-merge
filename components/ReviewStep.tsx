@@ -176,9 +176,30 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
     window.addEventListener("pointerup", onUp);
   }
 
+  // Theo dõi ô đang chọn để làm gốc cho phím tắt quét cột.
+  function handleSelectedCellChange(args: { rowIdx: number; column: { idx: number } }) {
+    const c = args.column.idx - 1; // cột SelectColumn idx 0 -> trừ 1
+    if (c < 0 || args.rowIdx < 0) return;
+    const cell = { r: args.rowIdx, c };
+    setAnchor(cell);
+    setFocus(cell);
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     const tag = (document.activeElement?.tagName ?? "").toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA") return; // đang sửa ô
+    // Ctrl/Cmd + Shift + ↓ : quét nhanh toàn bộ nội dung cột hiện tại.
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "ArrowDown") {
+      const origin = focus ?? anchor;
+      if (origin && sheet.rows.length > 0) {
+        e.preventDefault();
+        const c0 = bounds ? bounds.clo : origin.c;
+        const c1 = bounds ? bounds.chi : origin.c;
+        setAnchor({ r: 0, c: c0 });
+        setFocus({ r: sheet.rows.length - 1, c: c1 });
+      }
+      return;
+    }
     if (e.key === "Delete" || e.key === "Backspace") {
       if (bounds) {
         e.preventDefault();
@@ -278,7 +299,8 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
 
       <p className="text-xs text-slate-400">
         Kéo chuột để <strong>bôi đen vùng ô</strong> rồi bấm <kbd>Delete</kbd> để xóa nội dung ·
-        bấm header để sắp xếp · kéo header để đổi thứ tự cột · bấm đúp vào ô để sửa.
+        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> quét nhanh toàn bộ cột ·
+        <kbd>Ctrl</kbd>+<kbd>Z</kbd> hoàn tác · bấm header để sắp xếp · kéo header đổi thứ tự cột · bấm đúp để sửa ô.
       </p>
 
       <div
@@ -296,6 +318,7 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
           sortColumns={sortColumns}
           onSortColumnsChange={handleSort}
           onColumnsReorder={handleReorder}
+          onSelectedCellChange={handleSelectedCellChange}
           className="rdg-light"
         />
       </div>
