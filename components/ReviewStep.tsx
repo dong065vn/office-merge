@@ -7,6 +7,7 @@ import {
   SELECT_COLUMN_KEY,
   renderTextEditor,
   type Column,
+  type SortColumn,
 } from "react-data-grid";
 import "react-data-grid/lib/styles.css";
 import { ROW_ID_KEY, type Row, type SheetData } from "@/lib/types";
@@ -19,6 +20,7 @@ import {
   deleteRows,
   renameColumn,
   reorderColumns,
+  sortRows,
 } from "@/lib/edit/operations";
 
 interface Props {
@@ -50,6 +52,7 @@ function cellAtPoint(x: number, y: number): CellPos | null {
 
 export function ReviewStep({ sheets, onUpdateSheet }: Props) {
   const [active, setActive] = useState(0);
+  const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([]);
   const [colTarget, setColTarget] = useState<string>("");
   const [anchor, setAnchor] = useState<CellPos | null>(null);
   const [focus, setFocus] = useState<CellPos | null>(null);
@@ -59,6 +62,7 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
 
   useEffect(() => {
     setColTarget(sheet?.headers[0] ?? "");
+    setSortColumns([]);
     setAnchor(null);
     setFocus(null);
   }, [sheet?.id, sheet?.headers]);
@@ -86,7 +90,7 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
       key: h,
       name: h,
       resizable: true,
-      sortable: false,
+      sortable: true,
       draggable: true,
       editable: true,
       renderEditCell: renderTextEditor,
@@ -151,7 +155,11 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
     apply({ ...sheet, rows: kept, selectedRowIds: new Set(kept.map(rowKeyGetter)) });
   }
 
-
+  function handleSort(next: readonly SortColumn[]) {
+    setSortColumns(next);
+    const first = next[0];
+    if (first) apply(sortRows(sheet, String(first.columnKey), first.direction));
+  }
 
   function handleReorder(sourceKey: string, targetKey: string) {
     if (sourceKey === SELECT_COLUMN_KEY || targetKey === SELECT_COLUMN_KEY) return;
@@ -357,7 +365,7 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
       <p className="text-xs text-slate-400">
         Kéo chuột để <strong>bôi đen vùng ô</strong> rồi bấm <kbd>Delete</kbd>: chọn cả hàng → xóa hàng, chọn cả cột → xóa cột, còn lại → xóa nội dung ·
         <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> quét nhanh toàn bộ cột ·
-        <kbd>Ctrl</kbd>+<kbd>Z</kbd> hoàn tác · kéo header đổi thứ tự · bấm đúp sửa ô.
+        <kbd>Ctrl</kbd>+<kbd>Z</kbd> hoàn tác · bấm header sắp xếp · kéo header đổi thứ tự · bấm đúp sửa ô.
       </p>
 
       <div
@@ -372,7 +380,8 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
           selectedRows={sheet.selectedRowIds as ReadonlySet<string>}
           onSelectedRowsChange={setSelected}
           onRowsChange={(rows) => apply({ ...sheet, rows })}
-
+          sortColumns={sortColumns}
+          onSortColumnsChange={handleSort}
           onColumnsReorder={handleReorder}
           onSelectedCellChange={handleSelectedCellChange}
           className="rdg-light"
