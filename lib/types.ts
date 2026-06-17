@@ -32,7 +32,9 @@ export const ROW_ID_KEY = "__rowId" as const;
 /** Các kiểu gộp được hỗ trợ. */
 export type MergeStrategy =
   /** Nối dòng các file cùng cấu trúc cột thành 1 bảng (mặc định, khuyến nghị). */
-  | "append-rows";
+  | "append-rows"
+  /** Gộp nối tiếp giá trị ô cùng cột từ nhiều file, không khoảng trắng, giữ nguyên cấu trúc. */
+  | "concat-no-space";
 
 /** Cảnh báo phát sinh khi validate trước lúc gộp. */
 export interface MergeWarning {

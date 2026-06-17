@@ -4,6 +4,8 @@ import {
   addRow,
   clearCells,
   deleteColumn,
+  deleteColumns,
+  deleteRows,
   renameColumn,
   reorderColumns,
   sortRows,
@@ -103,5 +105,54 @@ describe("row operations", () => {
     s.rows[0].Tuoi = null;
     const r = sortRows(s, "Tuoi", "ASC");
     expect(r.rows[r.rows.length - 1].Tuoi).toBe(null);
+  });
+});
+
+describe("deleteRows (xóa nhiều hàng)", () => {
+  it("xóa 1 dòng theo chỉ số", () => {
+    const r = deleteRows(makeSheet(), 0, 0);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].Ten).toBe("An");
+    expect(r.selectedRowIds.has("s-0")).toBe(false);
+    expect(r.selectedRowIds.has("s-1")).toBe(true);
+  });
+
+  it("xóa nhiều dòng", () => {
+    const s = makeSheet();
+    s.rows.push({ [ROW_ID_KEY]: "s-2", Ten: "Cường", Tuoi: 25 });
+    s.selectedRowIds.add("s-2");
+    const r = deleteRows(s, 0, 1);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].Ten).toBe("Cường");
+  });
+
+  it("chỉ số ngoài biên → kẹp lại", () => {
+    const r = deleteRows(makeSheet(), -5, 0);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].Ten).toBe("An");
+  });
+
+  it("vùng không hợp lệ → trả nguyên", () => {
+    const s = makeSheet();
+    expect(deleteRows(s, -5, -1)).toBe(s);
+  });
+});
+
+describe("deleteColumns (xóa nhiều cột)", () => {
+  it("xóa 1 cột theo chỉ số", () => {
+    const r = deleteColumns(makeSheet(), 1, 1); // cột Tuoi
+    expect(r.headers).toEqual(["Ten"]);
+    expect("Tuoi" in r.rows[0]).toBe(false);
+  });
+
+  it("không xóa hết cột", () => {
+    const s = makeSheet();
+    const r = deleteColumns(s, 0, 1); // cả 2 cột
+    expect(r).toBe(s); // trả nguyên, không xóa
+  });
+
+  it("vùng không hợp lệ → trả nguyên", () => {
+    const s = makeSheet();
+    expect(deleteColumns(s, -5, -1)).toBe(s);
   });
 });

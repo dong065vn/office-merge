@@ -1,5 +1,7 @@
 import { ROW_ID_KEY, type Row, type SheetData } from "@/lib/types";
 
+const rowKeyGetter = (row: Row) => row[ROW_ID_KEY] as unknown as string;
+
 /** Sinh tên cột mới không trùng: "Cột mới", "Cột mới 2", … */
 function uniqueName(base: string, existing: string[]): string {
   if (!existing.includes(base)) return base;
@@ -119,4 +121,57 @@ export function sortRows(
     return String(va).localeCompare(String(vb), "vi") * dir;
   });
   return { ...sheet, rows };
+}
+
+/**
+ * Xóa nhiều dòng theo chỉ số (0-based, inclusive range).
+ * Cập nhật selectedRowIds cho khớp.
+ */
+export function deleteRows(
+  sheet: SheetData,
+  fromRow: number,
+  toRow: number,
+): SheetData {
+  const rlo = Math.max(0, Math.min(fromRow, toRow));
+  const rhi = Math.min(sheet.rows.length - 1, Math.max(fromRow, toRow));
+  if (rhi < rlo) return sheet;
+
+  const removedIds = new Set<string>();
+  for (let i = rlo; i <= rhi; i++) {
+    removedIds.add(rowKeyGetter(sheet.rows[i]));
+  }
+
+  const rows = sheet.rows.filter((_r, i) => i < rlo || i > rhi);
+  const selectedRowIds = new Set(
+    [...sheet.selectedRowIds].filter((id) => !removedIds.has(id)),
+  );
+  return { ...sheet, rows, selectedRowIds };
+}
+
+/**
+ * Xóa nhiều cột theo chỉ số (0-based, inclusive range).
+ * Bỏ header + key tương ứng ở mọi dòng.
+ */
+export function deleteColumns(
+  sheet: SheetData,
+  fromCol: number,
+  toCol: number,
+): SheetData {
+  const clo = Math.max(0, Math.min(fromCol, toCol));
+  const chi = Math.min(sheet.headers.length - 1, Math.max(fromCol, toCol));
+  if (chi < clo) return sheet;
+
+  const removedCols = new Set(sheet.headers.slice(clo, chi + 1));
+  const headers = sheet.headers.filter((h) => !removedCols.has(h));
+
+  if (headers.length === 0) return sheet; // không xóa hết cột
+
+  const rows = sheet.rows.map((r) => {
+    const next: Row = {};
+    for (const key of Object.keys(r)) {
+      if (!removedCols.has(key)) next[key] = r[key];
+    }
+    return next;
+  });
+  return { ...sheet, headers, rows };
 }

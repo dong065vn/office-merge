@@ -16,6 +16,8 @@ import {
   addRow,
   clearCells,
   deleteColumn,
+  deleteColumns,
+  deleteRows,
   renameColumn,
   reorderColumns,
   sortRows,
@@ -108,6 +110,12 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
 
   const selectedCount = sheet.selectedRowIds.size;
   const scanCount = bounds ? (bounds.rhi - bounds.rlo + 1) * (bounds.chi - bounds.clo + 1) : 0;
+  const scannedRowCount = bounds ? bounds.rhi - bounds.rlo + 1 : 0;
+  const scannedColCount = bounds ? bounds.chi - bounds.clo + 1 : 0;
+  // Quét bao phủ toàn bộ cột → có thể xóa hàng.
+  const isFullRowScan = bounds != null && bounds.clo === 0 && bounds.chi === sheet.headers.length - 1;
+  // Quét bao phủ toàn bộ dòng → có thể xóa cột.
+  const isFullColScan = bounds != null && bounds.rlo === 0 && bounds.rhi === sheet.rows.length - 1;
 
   const apply = (next: SheetData) => onUpdateSheet(sheet.id, next);
 
@@ -118,6 +126,28 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
   function clearScanned() {
     if (!bounds) return;
     apply(clearCells(sheet, bounds.rlo, bounds.rhi, bounds.clo, bounds.chi));
+  }
+
+  function deleteScannedRows() {
+    if (!bounds) return;
+    if (sheet.rows.length - scannedRowCount < 1) {
+      window.alert("Không thể xóa hết tất cả dòng.");
+      return;
+    }
+    apply(deleteRows(sheet, bounds.rlo, bounds.rhi));
+    setAnchor(null);
+    setFocus(null);
+  }
+
+  function deleteScannedCols() {
+    if (!bounds) return;
+    if (sheet.headers.length - scannedColCount < 1) {
+      window.alert("Không thể xóa hết tất cả cột.");
+      return;
+    }
+    apply(deleteColumns(sheet, bounds.clo, bounds.chi));
+    setAnchor(null);
+    setFocus(null);
   }
 
   function deleteUnselected() {
@@ -203,7 +233,23 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
     if (e.key === "Delete" || e.key === "Backspace") {
       if (bounds) {
         e.preventDefault();
-        clearScanned();
+        if (e.ctrlKey || e.metaKey) {
+          // Ctrl+Delete: force xóa hàng hoặc cột (khi quét một phần).
+          if (isFullColScan && !isFullRowScan) {
+            deleteScannedCols();
+          } else {
+            deleteScannedRows();
+          }
+        } else if (isFullRowScan && !isFullColScan) {
+          // Quét toàn bộ cột (tất cả cột) → xóa hàng đã quét.
+          deleteScannedRows();
+        } else if (isFullColScan && !isFullRowScan) {
+          // Quét toàn bộ dòng (tất cả dòng) → xóa cột đã quét.
+          deleteScannedCols();
+        } else {
+          // Quét một phần → chỉ xóa nội dung ô.
+          clearScanned();
+        }
       }
     } else if (e.key === "Escape") {
       setAnchor(null);
@@ -266,6 +312,7 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">
           Đã quét: <strong>{scanCount}</strong> ô
+          {scannedRowCount > 0 && <> ({scannedRowCount} dòng × {scannedColCount} cột)</>}
         </span>
         <button
           type="button"
@@ -274,7 +321,25 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
           onClick={clearScanned}
           title="Xóa rỗng nội dung các ô đã bôi đen (phím tắt: Delete)"
         >
-          🧽 Xóa nội dung vùng đã quét
+          🧽 Xóa nội dung
+        </button>
+        <button
+          type="button"
+          className="rounded border border-red-300 px-2 py-1 text-red-600 hover:bg-red-50 disabled:opacity-40"
+          disabled={scannedRowCount === 0}
+          onClick={deleteScannedRows}
+          title={`Xóa vĩnh viễn ${scannedRowCount} dòng đã quét (Ctrl+Delete)`}
+        >
+          🗑️ Xóa {scannedRowCount} dòng
+        </button>
+        <button
+          type="button"
+          className="rounded border border-red-300 px-2 py-1 text-red-600 hover:bg-red-50 disabled:opacity-40"
+          disabled={scannedColCount === 0}
+          onClick={deleteScannedCols}
+          title={`Xóa vĩnh viễn ${scannedColCount} cột đã quét`}
+        >
+          🗑️ Xóa {scannedColCount} cột
         </button>
         <span className="mx-1 h-4 w-px bg-slate-300" />
         <span className="font-medium">
@@ -298,9 +363,9 @@ export function ReviewStep({ sheets, onUpdateSheet }: Props) {
       </div>
 
       <p className="text-xs text-slate-400">
-        Kéo chuột để <strong>bôi đen vùng ô</strong> rồi bấm <kbd>Delete</kbd> để xóa nội dung ·
+        Kéo chuột để <strong>bôi đen vùng ô</strong> rồi bấm <kbd>Delete</kbd>: chọn cả hàng → xóa hàng, chọn cả cột → xóa cột, còn lại → xóa nội dung ·
         <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> quét nhanh toàn bộ cột ·
-        <kbd>Ctrl</kbd>+<kbd>Z</kbd> hoàn tác · bấm header để sắp xếp · kéo header đổi thứ tự cột · bấm đúp để sửa ô.
+        <kbd>Ctrl</kbd>+<kbd>Z</kbd> hoàn tác · bấm header sắp xếp · kéo header đổi thứ tự · bấm đúp sửa ô.
       </p>
 
       <div
